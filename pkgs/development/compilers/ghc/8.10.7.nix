@@ -11,6 +11,10 @@
 , # GHC can be built with system libffi or a bundled one.
   libffi ? null
 
+  # Libdw.c only supports x86_64, i686 and s390x
+, enableDwarf ? true
+, elfutils # for DWARF support
+
 , useLLVM ? !(stdenv.targetPlatform.isx86
               || stdenv.targetPlatform.isPowerPC
               || stdenv.targetPlatform.isSparc)
@@ -120,7 +124,8 @@ let
   libDeps = platform: lib.optional enableTerminfo ncurses
     ++ [libffi]
     ++ lib.optional (!enableIntegerSimple) gmp
-    ++ lib.optional (platform.libc != "glibc" && !targetPlatform.isWindows) libiconv;
+    ++ lib.optional (platform.libc != "glibc" && !targetPlatform.isWindows) libiconv
+    ++ lib.optional enableDwarf elfutils;
 
   # TODO(@sternenseemann): is buildTarget LLVM unnecessary?
   # GHC doesn't seem to have {LLC,OPT}_HOST
@@ -309,6 +314,10 @@ stdenv.mkDerivation (rec {
     "CONF_GCC_LINKER_OPTS_STAGE2=-fuse-ld=gold"
   ] ++ lib.optionals (disableLargeAddressSpace) [
     "--disable-large-address-space"
+  ] ++ lib.optionals enableDwarf [
+    "--enable-dwarf-unwind"
+    "--with-libdw-includes=${lib.getDev elfutils}/include"
+    "--with-libdw-libraries=${lib.getLib elfutils}/lib"
   ];
 
   # Make sure we never relax`$PATH` and hooks support for compatibility.
